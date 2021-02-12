@@ -22,9 +22,19 @@
       <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="1ad991e1-9cec-4076-9b55-11cddc1c2984" />
+      <option name="name" value="1ad991e1-9cec-4076-9b55-11cddc1c2984" />
+      <option name="url" value="https://mvnrepository.com/artifact" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="apache-repo" />
       <option name="name" value="Apache Repository" />
       <option name="url" value="https://repository.apache.org/content/repositories/releases" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="confluent" />
+      <option name="name" value="confluent" />
+      <option name="url" value="http://packages.confluent.io/maven/" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="jcenter" />

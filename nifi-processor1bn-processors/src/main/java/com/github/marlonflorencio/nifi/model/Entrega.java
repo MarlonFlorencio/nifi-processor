@@ -9,12 +9,11 @@ import org.apache.avro.message.BinaryMessageDecoder;
 import org.apache.avro.message.BinaryMessageEncoder;
 import org.apache.avro.message.SchemaStore;
 import org.apache.avro.specific.SpecificData;
-import org.apache.avro.util.Utf8;
 
 @org.apache.avro.specific.AvroGenerated
 public class Entrega extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
   private static final long serialVersionUID = -549664216281296334L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Entrega\",\"namespace\":\"com.github.marlonflorencio.nifi.data.model\",\"fields\":[{\"name\":\"endereco\",\"type\":\"string\"},{\"name\":\"numero\",\"type\":\"string\"},{\"name\":\"cidade\",\"type\":\"string\"},{\"name\":\"status\",\"type\":\"string\"}]}");
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Entrega\",\"namespace\":\"com.github.marlonflorencio.nifi.data.model\",\"fields\":[{\"name\":\"endereco\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}},{\"name\":\"numero\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}},{\"name\":\"cidade\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}},{\"name\":\"status\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -70,10 +69,10 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
     return DECODER.decode(b);
   }
 
-  @Deprecated public CharSequence endereco;
-  @Deprecated public CharSequence numero;
-  @Deprecated public CharSequence cidade;
-  @Deprecated public CharSequence status;
+   private String endereco;
+   private String numero;
+   private String cidade;
+   private String status;
 
   /**
    * Default constructor.  Note that this does not initialize fields
@@ -89,14 +88,14 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
    * @param cidade The new value for cidade
    * @param status The new value for status
    */
-  public Entrega(CharSequence endereco, CharSequence numero, CharSequence cidade, CharSequence status) {
+  public Entrega(String endereco, String numero, String cidade, String status) {
     this.endereco = endereco;
     this.numero = numero;
     this.cidade = cidade;
     this.status = status;
   }
 
-  public org.apache.avro.specific.SpecificData getSpecificData() { return MODEL$; }
+  public SpecificData getSpecificData() { return MODEL$; }
   public org.apache.avro.Schema getSchema() { return SCHEMA$; }
   // Used by DatumWriter.  Applications should not call.
   public Object get(int field$) {
@@ -113,10 +112,10 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
   @SuppressWarnings(value="unchecked")
   public void put(int field$, Object value$) {
     switch (field$) {
-    case 0: endereco = (CharSequence)value$; break;
-    case 1: numero = (CharSequence)value$; break;
-    case 2: cidade = (CharSequence)value$; break;
-    case 3: status = (CharSequence)value$; break;
+    case 0: endereco = value$ != null ? value$.toString() : null; break;
+    case 1: numero = value$ != null ? value$.toString() : null; break;
+    case 2: cidade = value$ != null ? value$.toString() : null; break;
+    case 3: status = value$ != null ? value$.toString() : null; break;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
@@ -125,69 +124,41 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
    * Gets the value of the 'endereco' field.
    * @return The value of the 'endereco' field.
    */
-  public CharSequence getEndereco() {
+  public String getEndereco() {
     return endereco;
   }
 
 
-  /**
-   * Sets the value of the 'endereco' field.
-   * @param value the value to set.
-   */
-  public void setEndereco(CharSequence value) {
-    this.endereco = value;
-  }
 
   /**
    * Gets the value of the 'numero' field.
    * @return The value of the 'numero' field.
    */
-  public CharSequence getNumero() {
+  public String getNumero() {
     return numero;
   }
 
 
-  /**
-   * Sets the value of the 'numero' field.
-   * @param value the value to set.
-   */
-  public void setNumero(CharSequence value) {
-    this.numero = value;
-  }
 
   /**
    * Gets the value of the 'cidade' field.
    * @return The value of the 'cidade' field.
    */
-  public CharSequence getCidade() {
+  public String getCidade() {
     return cidade;
   }
 
 
-  /**
-   * Sets the value of the 'cidade' field.
-   * @param value the value to set.
-   */
-  public void setCidade(CharSequence value) {
-    this.cidade = value;
-  }
 
   /**
    * Gets the value of the 'status' field.
    * @return The value of the 'status' field.
    */
-  public CharSequence getStatus() {
+  public String getStatus() {
     return status;
   }
 
 
-  /**
-   * Sets the value of the 'status' field.
-   * @param value the value to set.
-   */
-  public void setStatus(CharSequence value) {
-    this.status = value;
-  }
 
   /**
    * Creates a new Entrega RecordBuilder.
@@ -230,10 +201,10 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
   public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<Entrega>
     implements org.apache.avro.data.RecordBuilder<Entrega> {
 
-    private CharSequence endereco;
-    private CharSequence numero;
-    private CharSequence cidade;
-    private CharSequence status;
+    private String endereco;
+    private String numero;
+    private String cidade;
+    private String status;
 
     /** Creates a new Builder */
     private Builder() {
@@ -292,7 +263,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * Gets the value of the 'endereco' field.
       * @return The value.
       */
-    public CharSequence getEndereco() {
+    public String getEndereco() {
       return endereco;
     }
 
@@ -302,7 +273,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * @param value The value of 'endereco'.
       * @return This builder.
       */
-    public Builder setEndereco(CharSequence value) {
+    public Builder setEndereco(String value) {
       validate(fields()[0], value);
       this.endereco = value;
       fieldSetFlags()[0] = true;
@@ -332,7 +303,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * Gets the value of the 'numero' field.
       * @return The value.
       */
-    public CharSequence getNumero() {
+    public String getNumero() {
       return numero;
     }
 
@@ -342,7 +313,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * @param value The value of 'numero'.
       * @return This builder.
       */
-    public Builder setNumero(CharSequence value) {
+    public Builder setNumero(String value) {
       validate(fields()[1], value);
       this.numero = value;
       fieldSetFlags()[1] = true;
@@ -372,7 +343,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * Gets the value of the 'cidade' field.
       * @return The value.
       */
-    public CharSequence getCidade() {
+    public String getCidade() {
       return cidade;
     }
 
@@ -382,7 +353,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * @param value The value of 'cidade'.
       * @return This builder.
       */
-    public Builder setCidade(CharSequence value) {
+    public Builder setCidade(String value) {
       validate(fields()[2], value);
       this.cidade = value;
       fieldSetFlags()[2] = true;
@@ -412,7 +383,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * Gets the value of the 'status' field.
       * @return The value.
       */
-    public CharSequence getStatus() {
+    public String getStatus() {
       return status;
     }
 
@@ -422,7 +393,7 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
       * @param value The value of 'status'.
       * @return This builder.
       */
-    public Builder setStatus(CharSequence value) {
+    public Builder setStatus(String value) {
       validate(fields()[3], value);
       this.status = value;
       fieldSetFlags()[3] = true;
@@ -453,10 +424,10 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
     public Entrega build() {
       try {
         Entrega record = new Entrega();
-        record.endereco = fieldSetFlags()[0] ? this.endereco : (CharSequence) defaultValue(fields()[0]);
-        record.numero = fieldSetFlags()[1] ? this.numero : (CharSequence) defaultValue(fields()[1]);
-        record.cidade = fieldSetFlags()[2] ? this.cidade : (CharSequence) defaultValue(fields()[2]);
-        record.status = fieldSetFlags()[3] ? this.status : (CharSequence) defaultValue(fields()[3]);
+        record.endereco = fieldSetFlags()[0] ? this.endereco : (String) defaultValue(fields()[0]);
+        record.numero = fieldSetFlags()[1] ? this.numero : (String) defaultValue(fields()[1]);
+        record.cidade = fieldSetFlags()[2] ? this.cidade : (String) defaultValue(fields()[2]);
+        record.status = fieldSetFlags()[3] ? this.status : (String) defaultValue(fields()[3]);
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
         throw e;
@@ -504,31 +475,31 @@ public class Entrega extends org.apache.avro.specific.SpecificRecordBase impleme
   {
     org.apache.avro.Schema.Field[] fieldOrder = in.readFieldOrderIfDiff();
     if (fieldOrder == null) {
-      this.endereco = in.readString(this.endereco instanceof Utf8 ? (Utf8)this.endereco : null);
+      this.endereco = in.readString();
 
-      this.numero = in.readString(this.numero instanceof Utf8 ? (Utf8)this.numero : null);
+      this.numero = in.readString();
 
-      this.cidade = in.readString(this.cidade instanceof Utf8 ? (Utf8)this.cidade : null);
+      this.cidade = in.readString();
 
-      this.status = in.readString(this.status instanceof Utf8 ? (Utf8)this.status : null);
+      this.status = in.readString();
 
     } else {
       for (int i = 0; i < 4; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
-          this.endereco = in.readString(this.endereco instanceof Utf8 ? (Utf8)this.endereco : null);
+          this.endereco = in.readString();
           break;
 
         case 1:
-          this.numero = in.readString(this.numero instanceof Utf8 ? (Utf8)this.numero : null);
+          this.numero = in.readString();
           break;
 
         case 2:
-          this.cidade = in.readString(this.cidade instanceof Utf8 ? (Utf8)this.cidade : null);
+          this.cidade = in.readString();
           break;
 
         case 3:
-          this.status = in.readString(this.status instanceof Utf8 ? (Utf8)this.status : null);
+          this.status = in.readString();
           break;
 
         default:
