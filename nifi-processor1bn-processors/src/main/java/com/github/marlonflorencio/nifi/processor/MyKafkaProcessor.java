@@ -1,6 +1,8 @@
 package com.github.marlonflorencio.nifi.processor;
 
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
+import io.confluent.kafka.serializers.KafkaAvroSerializerConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.errors.WakeupException;
@@ -13,7 +15,11 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnStopped;
 import org.apache.nifi.annotation.lifecycle.OnUnscheduled;
-import org.apache.nifi.components.*;
+import org.apache.nifi.components.AllowableValue;
+import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.ValidationContext;
+import org.apache.nifi.components.ValidationResult;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.AbstractProcessor;
@@ -26,7 +32,14 @@ import org.apache.nifi.processor.util.StandardValidators;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -79,6 +92,16 @@ public class MyKafkaProcessor extends AbstractProcessor {
             .required(true)
             .allowableValues(TOPIC_NAME, TOPIC_PATTERN)
             .defaultValue(TOPIC_NAME.getValue())
+            .build();
+
+
+    static final PropertyDescriptor SCHEMA_REGISTRY = new PropertyDescriptor.Builder()
+            .name(KafkaAvroSerializerConfig.SCHEMA_REGISTRY_URL_CONFIG)
+            .displayName("Schema Registry URL")
+            .description("Schema Registry.")
+            .required(true)
+            .addValidator(StandardValidators.NON_BLANK_VALIDATOR)
+            .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
             .build();
 
     static final PropertyDescriptor GROUP_ID = new PropertyDescriptor.Builder()
@@ -215,6 +238,7 @@ public class MyKafkaProcessor extends AbstractProcessor {
         descriptors.add(TOPICS);
         descriptors.add(TOPIC_TYPE);
         descriptors.add(HONOR_TRANSACTIONS);
+        descriptors.add(SCHEMA_REGISTRY);
         descriptors.add(GROUP_ID);
         descriptors.add(AUTO_OFFSET_RESET);
         descriptors.add(KEY_ATTRIBUTE_ENCODING);
@@ -314,14 +338,15 @@ public class MyKafkaProcessor extends AbstractProcessor {
     protected ConsumerPool createConsumerPool(final ProcessContext context, final ComponentLog log) {
         final int maxLeases = context.getMaxConcurrentTasks();
         final long maxUncommittedTime = context.getProperty(MAX_UNCOMMITTED_TIME).asTimePeriod(TimeUnit.MILLISECONDS);
-        final byte[] demarcator = context.getProperty(MyKafkaProcessor.MESSAGE_DEMARCATOR).isSet()
-                ? context.getProperty(MyKafkaProcessor.MESSAGE_DEMARCATOR).evaluateAttributeExpressions().getValue().getBytes(StandardCharsets.UTF_8)
-                : null;
+        final String schemaRegistry = context.getProperty(KafkaAvroSerializerConfig.SCHEMA_REGISTRY_URL_CONFIG).evaluateAttributeExpressions().getValue();
+
         final Map<String, Object> props = new HashMap<>();
         KafkaProcessorUtils.buildCommonKafkaProperties(context, ConsumerConfig.class, props);
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        props.put(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, "true");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
+        props.put(KafkaAvroSerializerConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistry);
 
         final String topicListing = context.getProperty(MyKafkaProcessor.TOPICS).evaluateAttributeExpressions().getValue();
         final String topicType = context.getProperty(MyKafkaProcessor.TOPIC_TYPE).evaluateAttributeExpressions().getValue();
@@ -356,11 +381,11 @@ public class MyKafkaProcessor extends AbstractProcessor {
                 }
             }
 
-            return new ConsumerPool(maxLeases, demarcator, separateByKey, props, topics, maxUncommittedTime, keyEncoding, securityProtocol,
+            return new ConsumerPool(maxLeases, separateByKey, props, topics, maxUncommittedTime, keyEncoding, securityProtocol,
                     bootstrapServers, log, honorTransactions, charset, headerNamePattern, partitionsToConsume);
         } else if (topicType.equals(TOPIC_PATTERN.getValue())) {
             final Pattern topicPattern = Pattern.compile(topicListing.trim());
-            return new ConsumerPool(maxLeases, demarcator, separateByKey, props, topicPattern, maxUncommittedTime, keyEncoding, securityProtocol,
+            return new ConsumerPool(maxLeases, separateByKey, props, topicPattern, maxUncommittedTime, keyEncoding, securityProtocol,
                     bootstrapServers, log, honorTransactions, charset, headerNamePattern, partitionsToConsume);
         } else {
             getLogger().error("Subscription type has an unknown value {}", new Object[] {topicType});

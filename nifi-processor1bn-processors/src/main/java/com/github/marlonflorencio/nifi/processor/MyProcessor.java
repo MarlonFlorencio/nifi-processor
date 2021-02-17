@@ -1,6 +1,6 @@
 package com.github.marlonflorencio.nifi.processor;
 
-import com.github.marlonflorencio.nifi.model.Entrega;
+import com.github.marlonflorencio.nifi.data.model.Entrega;
 import org.apache.avro.file.DataFileStream;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.specific.SpecificDatumReader;

@@ -1,16 +1,13 @@
 package com.github.marlonflorencio.nifi.processor;
 
 
-import com.github.marlonflorencio.nifi.model.Entrega;
-import com.github.marlonflorencio.nifi.model.EntregaDto;
-import com.google.gson.Gson;
-import org.apache.avro.Schema;
-import org.apache.avro.data.TimeConversions;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.BinaryEncoder;
-import org.apache.avro.io.EncoderFactory;
-import org.apache.kafka.clients.consumer.*;
+import com.github.marlonflorencio.nifi.data.model.Entrega;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
@@ -19,19 +16,22 @@ import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.serialization.RecordReaderFactory;
 import org.apache.nifi.serialization.RecordSetWriter;
-import org.apache.nifi.serialization.RecordSetWriterFactory;
 import org.apache.nifi.serialization.WriteResult;
 import org.apache.nifi.serialization.record.RecordSchema;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -49,18 +49,13 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
     private final long maxWaitMillis;
     private final Consumer<String, Entrega> kafkaConsumer;
     private final ComponentLog logger;
-    private final byte[] demarcatorBytes;
     private final String keyEncoding;
     private final String securityProtocol;
     private final String bootstrapServers;
-    private final RecordSetWriterFactory writerFactory;
-    private final RecordReaderFactory readerFactory;
     private final Charset headerCharacterSet;
     private final Pattern headerNamePattern;
     private final boolean separateByKey;
     private boolean poisoned = false;
-    //used for tracking demarcated flowfiles to their TopicPartition so we can append
-    //to them on subsequent poll calls
     private final Map<BundleInformation, BundleTracker> bundleMap = new HashMap<>();
     private final Map<TopicPartition, OffsetAndMetadata> uncommittedOffsetsMap = new HashMap<>();
     private long leaseStartNanos = -1;
@@ -70,24 +65,18 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
     ConsumerLease(
             final long maxWaitMillis,
             final Consumer<String, Entrega> kafkaConsumer,
-            final byte[] demarcatorBytes,
             final String keyEncoding,
             final String securityProtocol,
             final String bootstrapServers,
-            final RecordReaderFactory readerFactory,
-            final RecordSetWriterFactory writerFactory,
             final ComponentLog logger,
             final Charset headerCharacterSet,
             final Pattern headerNamePattern,
             final boolean separateByKey) {
         this.maxWaitMillis = maxWaitMillis;
         this.kafkaConsumer = kafkaConsumer;
-        this.demarcatorBytes = demarcatorBytes;
         this.keyEncoding = keyEncoding;
         this.securityProtocol = securityProtocol;
         this.bootstrapServers = bootstrapServers;
-        this.readerFactory = readerFactory;
-        this.writerFactory = writerFactory;
         this.logger = logger;
         this.headerCharacterSet = headerCharacterSet;
         this.headerNamePattern = headerNamePattern;
@@ -358,19 +347,7 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
 
         if (value != null) {
             flowFile = session.write(flowFile, out -> {
-
-                //AQUI - CONVERSAO
-
-                EntregaDto entregaDto = new EntregaDto(
-                        value.getEndereco(),
-                        value.getNumero(),
-                        value.getCidade(),
-                        value.getStatus()
-                );
-
-                String json = new Gson().toJson(entregaDto);
-
-                out.write(json.getBytes(StandardCharsets.UTF_8));
+                out.write(value.toString().getBytes(StandardCharsets.UTF_8));
             });
         }
 
