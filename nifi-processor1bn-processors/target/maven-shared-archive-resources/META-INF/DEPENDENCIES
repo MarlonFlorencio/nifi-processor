@@ -27,7 +27,7 @@ From: 'ANTLR' (http://www.antlr.org)
 From: 'Apache NiFi Project' (https://nifi.apache.org/)
   - nifi-record-path (https://nifi.apache.org/nifi-commons/nifi-record-path) org.apache.nifi:nifi-record-path:jar:1.13.0
     License: Apache License, Version 2.0  (https://www.apache.org/licenses/LICENSE-2.0)
-  - nifi-utils (https://nifi.apache.org/nifi-commons/nifi-utils) org.apache.nifi:nifi-utils:jar:1.12.1
+  - nifi-utils (https://nifi.apache.org/nifi-commons/nifi-utils) org.apache.nifi:nifi-utils:jar:1.13.0
     License: Apache License, Version 2.0  (https://www.apache.org/licenses/LICENSE-2.0)
   - nifi-uuid5 (https://nifi.apache.org/nifi-commons/nifi-uuid5) org.apache.nifi:nifi-uuid5:jar:1.13.0
     License: Apache License, Version 2.0  (https://www.apache.org/licenses/LICENSE-2.0)

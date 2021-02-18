@@ -1,7 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.github.marlonflorencio.nifi.processor;
 
-
-import com.github.marlonflorencio.nifi.data.model.Entrega;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaException;
@@ -10,6 +25,8 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
+import org.apache.nifi.serialization.RecordReaderFactory;
+import org.apache.nifi.serialization.RecordSetWriterFactory;
 
 import java.io.Closeable;
 import java.nio.charset.Charset;
@@ -36,10 +53,13 @@ public class ConsumerPool implements Closeable {
     private final Map<String, Object> kafkaProperties;
     private final long maxWaitMillis;
     private final ComponentLog logger;
+    private final byte[] demarcatorBytes;
     private final String keyEncoding;
     private final String securityProtocol;
     private final String bootstrapServers;
     private final boolean honorTransactions;
+    private final RecordReaderFactory readerFactory;
+    private final RecordSetWriterFactory writerFactory;
     private final Charset headerCharacterSet;
     private final Pattern headerNamePattern;
     private final boolean separateByKey;
@@ -56,6 +76,8 @@ public class ConsumerPool implements Closeable {
      * below a certain threshold.
      *
      * @param maxConcurrentLeases max allowable consumers at once
+     * @param demarcator bytes to use as demarcator between messages; null or
+     * empty means no demarcator
      * @param kafkaProperties properties to use to initialize kafka consumers
      * @param topics the topics to subscribe to
      * @param maxWaitMillis maximum time to wait for a given lease to acquire
@@ -68,6 +90,7 @@ public class ConsumerPool implements Closeable {
      */
     public ConsumerPool(
             final int maxConcurrentLeases,
+            final byte[] demarcator,
             final boolean separateByKey,
             final Map<String, Object> kafkaProperties,
             final List<String> topics,
@@ -83,12 +106,15 @@ public class ConsumerPool implements Closeable {
         this.pooledLeases = new LinkedBlockingQueue<>();
         this.maxWaitMillis = maxWaitMillis;
         this.logger = logger;
+        this.demarcatorBytes = demarcator;
         this.keyEncoding = keyEncoding;
         this.securityProtocol = securityProtocol;
         this.bootstrapServers = bootstrapServers;
         this.kafkaProperties = Collections.unmodifiableMap(kafkaProperties);
         this.topics = Collections.unmodifiableList(topics);
         this.topicPattern = null;
+        this.readerFactory = null;
+        this.writerFactory = null;
         this.honorTransactions = honorTransactions;
         this.headerCharacterSet = headerCharacterSet;
         this.headerNamePattern = headerNamePattern;
@@ -99,6 +125,7 @@ public class ConsumerPool implements Closeable {
 
     public ConsumerPool(
             final int maxConcurrentLeases,
+            final byte[] demarcator,
             final boolean separateByKey,
             final Map<String, Object> kafkaProperties,
             final Pattern topics,
@@ -114,7 +141,45 @@ public class ConsumerPool implements Closeable {
         this.pooledLeases = new LinkedBlockingQueue<>();
         this.maxWaitMillis = maxWaitMillis;
         this.logger = logger;
+        this.demarcatorBytes = demarcator;
         this.keyEncoding = keyEncoding;
+        this.securityProtocol = securityProtocol;
+        this.bootstrapServers = bootstrapServers;
+        this.kafkaProperties = Collections.unmodifiableMap(kafkaProperties);
+        this.topics = null;
+        this.topicPattern = topics;
+        this.readerFactory = null;
+        this.writerFactory = null;
+        this.honorTransactions = honorTransactions;
+        this.headerCharacterSet = headerCharacterSet;
+        this.headerNamePattern = headerNamePattern;
+        this.separateByKey = separateByKey;
+        this.partitionsToConsume = partitionsToConsume;
+        enqueueLeases(partitionsToConsume);
+    }
+
+    public ConsumerPool(
+            final int maxConcurrentLeases,
+            final RecordReaderFactory readerFactory,
+            final RecordSetWriterFactory writerFactory,
+            final Map<String, Object> kafkaProperties,
+            final Pattern topics,
+            final long maxWaitMillis,
+            final String securityProtocol,
+            final String bootstrapServers,
+            final ComponentLog logger,
+            final boolean honorTransactions,
+            final Charset headerCharacterSet,
+            final Pattern headerNamePattern,
+            final boolean separateByKey,
+            final String keyEncoding,
+            final int[] partitionsToConsume) {
+        this.pooledLeases = new LinkedBlockingQueue<>();
+        this.maxWaitMillis = maxWaitMillis;
+        this.logger = logger;
+        this.demarcatorBytes = null;
+        this.readerFactory = readerFactory;
+        this.writerFactory = writerFactory;
         this.securityProtocol = securityProtocol;
         this.bootstrapServers = bootstrapServers;
         this.kafkaProperties = Collections.unmodifiableMap(kafkaProperties);
@@ -124,6 +189,43 @@ public class ConsumerPool implements Closeable {
         this.headerCharacterSet = headerCharacterSet;
         this.headerNamePattern = headerNamePattern;
         this.separateByKey = separateByKey;
+        this.keyEncoding = keyEncoding;
+        this.partitionsToConsume = partitionsToConsume;
+        enqueueLeases(partitionsToConsume);
+    }
+
+    public ConsumerPool(
+            final int maxConcurrentLeases,
+            final RecordReaderFactory readerFactory,
+            final RecordSetWriterFactory writerFactory,
+            final Map<String, Object> kafkaProperties,
+            final List<String> topics,
+            final long maxWaitMillis,
+            final String securityProtocol,
+            final String bootstrapServers,
+            final ComponentLog logger,
+            final boolean honorTransactions,
+            final Charset headerCharacterSet,
+            final Pattern headerNamePattern,
+            final boolean separateByKey,
+            final String keyEncoding,
+            final int[] partitionsToConsume) {
+        this.pooledLeases = new LinkedBlockingQueue<>();
+        this.maxWaitMillis = maxWaitMillis;
+        this.logger = logger;
+        this.demarcatorBytes = null;
+        this.readerFactory = readerFactory;
+        this.writerFactory = writerFactory;
+        this.securityProtocol = securityProtocol;
+        this.bootstrapServers = bootstrapServers;
+        this.kafkaProperties = Collections.unmodifiableMap(kafkaProperties);
+        this.topics = topics;
+        this.topicPattern = null;
+        this.honorTransactions = honorTransactions;
+        this.headerCharacterSet = headerCharacterSet;
+        this.headerNamePattern = headerNamePattern;
+        this.separateByKey = separateByKey;
+        this.keyEncoding = keyEncoding;
         this.partitionsToConsume = partitionsToConsume;
         enqueueLeases(partitionsToConsume);
     }
@@ -135,7 +237,7 @@ public class ConsumerPool implements Closeable {
         }
 
         int partitionsEachTopic = 0;
-        try (final Consumer<String, Entrega> consumer = createKafkaConsumer()) {
+        try (final Consumer<String, GenericRecord> consumer = createKafkaConsumer()) {
             for (final String topicName : topics) {
                 final List<PartitionInfo> partitionInfos = consumer.partitionsFor(topicName);
                 final int partitionsThisTopic = partitionInfos.size();
@@ -163,7 +265,7 @@ public class ConsumerPool implements Closeable {
     public ConsumerLease obtainConsumer(final ProcessSession session, final ProcessContext processContext) {
         SimpleConsumerLease lease = pooledLeases.poll();
         if (lease == null) {
-            final Consumer<String, Entrega> consumer = createKafkaConsumer();
+            final Consumer<String, GenericRecord> consumer = createKafkaConsumer();
             consumerCreatedCountRef.incrementAndGet();
             /**
              * For now return a new consumer lease. But we could later elect to
@@ -202,7 +304,7 @@ public class ConsumerPool implements Closeable {
             topicPartitions.add(topicPartition);
         }
 
-        final Consumer<String, Entrega> consumer = createKafkaConsumer();
+        final Consumer<String, GenericRecord> consumer = createKafkaConsumer();
         consumerCreatedCountRef.incrementAndGet();
         consumer.assign(topicPartitions);
 
@@ -227,15 +329,14 @@ public class ConsumerPool implements Closeable {
      * @return consumer
      * @throws KafkaException if unable to subscribe to the given topics
      */
-    protected Consumer<String, Entrega> createKafkaConsumer() {
-        //AQUI - MARLON
+    protected Consumer<String, GenericRecord> createKafkaConsumer() {
         final Map<String, Object> properties = new HashMap<>(kafkaProperties);
         if (honorTransactions) {
             properties.put("isolation.level", "read_committed");
         } else {
             properties.put("isolation.level", "read_uncommitted");
         }
-        final Consumer<String, Entrega> consumer = new KafkaConsumer<>(properties);
+        final Consumer<String, GenericRecord> consumer = new KafkaConsumer<>(properties);
         return consumer;
     }
 
@@ -272,13 +373,14 @@ public class ConsumerPool implements Closeable {
 
     private class SimpleConsumerLease extends ConsumerLease {
 
-        private final Consumer<String, Entrega> consumer;
+        private final Consumer<String, GenericRecord> consumer;
         private volatile ProcessSession session;
         private volatile ProcessContext processContext;
         private volatile boolean closedConsumer;
 
-        private SimpleConsumerLease(final Consumer<String, Entrega> consumer) {
-            super(maxWaitMillis, consumer, keyEncoding, securityProtocol, bootstrapServers,  logger, headerCharacterSet, headerNamePattern, separateByKey);
+        private SimpleConsumerLease(final Consumer<String, GenericRecord> consumer) {
+            super(maxWaitMillis, consumer, demarcatorBytes, keyEncoding, securityProtocol, bootstrapServers,
+                readerFactory, writerFactory, logger, headerCharacterSet, headerNamePattern, separateByKey);
             this.consumer = consumer;
         }
 

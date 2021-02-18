@@ -12,11 +12,10 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.apache.nifi:nifi-api:1.13.0" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.nifi:nifi-utils:1.12.1" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.nifi:nifi-utils:1.13.0" level="project" />
     <orderEntry type="library" name="Maven: javax.xml.bind:jaxb-api:2.3.0" level="project" />
     <orderEntry type="library" name="Maven: com.sun.xml.bind:jaxb-core:2.3.0" level="project" />
     <orderEntry type="library" name="Maven: com.sun.xml.bind:jaxb-impl:2.3.0" level="project" />
-    <orderEntry type="library" name="Maven: commons-io:commons-io:2.8.0" level="project" />
     <orderEntry type="library" name="Maven: org.apache.nifi:nifi-record-path:1.13.0" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.apache.nifi:nifi-properties:1.13.0" level="project" />
     <orderEntry type="library" name="Maven: org.apache.nifi:nifi-uuid5:1.13.0" level="project" />
@@ -30,6 +29,7 @@
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.apache.nifi:nifi-record-serialization-service-api:1.13.0" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.apache.nifi:nifi-record:1.13.0" level="project" />
     <orderEntry type="library" scope="PROVIDED" name="Maven: org.apache.nifi:nifi-schema-registry-service-api:1.13.0" level="project" />
+    <orderEntry type="library" name="Maven: commons-io:commons-io:2.8.0" level="project" />
     <orderEntry type="library" name="Maven: io.confluent:kafka-avro-serializer:5.5.3" level="project" />
     <orderEntry type="library" name="Maven: io.confluent:kafka-schema-serializer:5.5.3" level="project" />
     <orderEntry type="library" name="Maven: io.confluent:kafka-schema-registry-client:5.5.3" level="project" />

@@ -1,7 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.github.marlonflorencio.nifi.processor;
 
-
-import com.github.marlonflorencio.nifi.data.model.Entrega;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -16,10 +31,13 @@ import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.exception.ProcessException;
+import org.apache.nifi.serialization.RecordReaderFactory;
 import org.apache.nifi.serialization.RecordSetWriter;
+import org.apache.nifi.serialization.RecordSetWriterFactory;
 import org.apache.nifi.serialization.WriteResult;
 import org.apache.nifi.serialization.record.RecordSchema;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -35,7 +53,9 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import static com.github.marlonflorencio.nifi.processor.MyKafkaProcessor.REL_SUCCESS;
+import static com.github.marlonflorencio.nifi.processor.MyConsumeKafka_2_6.REL_SUCCESS;
+import static com.github.marlonflorencio.nifi.processor.KafkaProcessorUtils.HEX_ENCODING;
+import static com.github.marlonflorencio.nifi.processor.KafkaProcessorUtils.UTF8_ENCODING;
 
 /**
  * This class represents a lease to access a Kafka Consumer object. The lease is
@@ -47,15 +67,20 @@ import static com.github.marlonflorencio.nifi.processor.MyKafkaProcessor.REL_SUC
 public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListener {
 
     private final long maxWaitMillis;
-    private final Consumer<String, Entrega> kafkaConsumer;
+    private final Consumer<String, GenericRecord> kafkaConsumer;
     private final ComponentLog logger;
+    private final byte[] demarcatorBytes;
     private final String keyEncoding;
     private final String securityProtocol;
     private final String bootstrapServers;
+    private final RecordSetWriterFactory writerFactory;
+    private final RecordReaderFactory readerFactory;
     private final Charset headerCharacterSet;
     private final Pattern headerNamePattern;
     private final boolean separateByKey;
     private boolean poisoned = false;
+    //used for tracking demarcated flowfiles to their TopicPartition so we can append
+    //to them on subsequent poll calls
     private final Map<BundleInformation, BundleTracker> bundleMap = new HashMap<>();
     private final Map<TopicPartition, OffsetAndMetadata> uncommittedOffsetsMap = new HashMap<>();
     private long leaseStartNanos = -1;
@@ -64,19 +89,25 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
 
     ConsumerLease(
             final long maxWaitMillis,
-            final Consumer<String, Entrega> kafkaConsumer,
+            final Consumer<String, GenericRecord> kafkaConsumer,
+            final byte[] demarcatorBytes,
             final String keyEncoding,
             final String securityProtocol,
             final String bootstrapServers,
+            final RecordReaderFactory readerFactory,
+            final RecordSetWriterFactory writerFactory,
             final ComponentLog logger,
             final Charset headerCharacterSet,
             final Pattern headerNamePattern,
             final boolean separateByKey) {
         this.maxWaitMillis = maxWaitMillis;
         this.kafkaConsumer = kafkaConsumer;
+        this.demarcatorBytes = demarcatorBytes;
         this.keyEncoding = keyEncoding;
         this.securityProtocol = securityProtocol;
         this.bootstrapServers = bootstrapServers;
+        this.readerFactory = readerFactory;
+        this.writerFactory = writerFactory;
         this.logger = logger;
         this.headerCharacterSet = headerCharacterSet;
         this.headerNamePattern = headerNamePattern;
@@ -140,7 +171,7 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
          * This behavior has been fixed via Kafka KIP-62 and available from Kafka client 0.10.1.0.
          */
         try {
-            final ConsumerRecords<String, Entrega> records = kafkaConsumer.poll(Duration.ofMillis(10));
+            final ConsumerRecords<String, GenericRecord> records = kafkaConsumer.poll(Duration.ofMillis(10));
             lastPollEmpty = records.count() == 0;
             processRecords(records);
         } catch (final ProcessException pe) {
@@ -280,9 +311,9 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
 
     public abstract void yield();
 
-    private void processRecords(final ConsumerRecords<String, Entrega> records) {
+    private void processRecords(final ConsumerRecords<String, GenericRecord> records) {
         records.partitions().stream().forEach(partition -> {
-            List<ConsumerRecord<String, Entrega>> messages = records.records(partition);
+            List<ConsumerRecord<String, GenericRecord>> messages = records.records(partition);
             if (!messages.isEmpty()) {
                 //update maximum offset map for this topic partition
                 long maxOffset = messages.stream()
@@ -290,7 +321,8 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
                         .max()
                         .getAsLong();
 
-                messages.forEach(message -> {
+                //write records to content repository and session
+                messages.stream().forEach(message -> {
                     writeData(getProcessSession(), message, partition);
                 });
 
@@ -298,6 +330,20 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
                 uncommittedOffsetsMap.put(partition, new OffsetAndMetadata(maxOffset + 1L));
             }
         });
+    }
+
+    private static String encodeKafkaKey(final byte[] key, final String encoding) {
+        if (key == null) {
+            return null;
+        }
+
+        if (HEX_ENCODING.getValue().equals(encoding)) {
+            return DatatypeConverter.printHexBinary(key);
+        } else if (UTF8_ENCODING.getValue().equals(encoding)) {
+            return new String(key, StandardCharsets.UTF_8);
+        } else {
+            return null;  // won't happen because it is guaranteed by the Allowable Values
+        }
     }
 
     private Collection<FlowFile> getBundles() throws IOException {
@@ -338,13 +384,11 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
         return true;
     }
 
-    private void writeData(final ProcessSession session, ConsumerRecord<String, Entrega> record, final TopicPartition topicPartition) {
+    private void writeData(final ProcessSession session, ConsumerRecord<String, GenericRecord> record, final TopicPartition topicPartition) {
         FlowFile flowFile = session.create();
         final BundleTracker tracker = new BundleTracker(record, topicPartition, keyEncoding);
         tracker.incrementRecordCount(1);
-
-        final Entrega value = record.value();
-
+        final GenericRecord value = record.value();
         if (value != null) {
             flowFile = session.write(flowFile, out -> {
                 out.write(value.toString().getBytes(StandardCharsets.UTF_8));
@@ -352,6 +396,8 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
         }
 
         flowFile = session.putAllAttributes(flowFile, getAttributes(record));
+        flowFile = session.putAttribute(flowFile, CoreAttributes.MIME_TYPE.key(), "application/json");
+
         tracker.updateFlowFile(flowFile);
         populateAttributes(tracker);
         session.transfer(tracker.flowFile, REL_SUCCESS);
@@ -417,11 +463,11 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
         FlowFile flowFile;
         long totalRecords = 0;
 
-        private BundleTracker(final ConsumerRecord<String, Entrega> initialRecord, final TopicPartition topicPartition, final String keyEncoding) {
+        private BundleTracker(final ConsumerRecord<String, GenericRecord> initialRecord, final TopicPartition topicPartition, final String keyEncoding) {
             this(initialRecord, topicPartition, keyEncoding, null);
         }
 
-        private BundleTracker(final ConsumerRecord<String, Entrega> initialRecord, final TopicPartition topicPartition, final String keyEncoding, final RecordSetWriter recordWriter) {
+        private BundleTracker(final ConsumerRecord<String, GenericRecord> initialRecord, final TopicPartition topicPartition, final String keyEncoding, final RecordSetWriter recordWriter) {
             this.initialOffset = initialRecord.offset();
             this.initialTimestamp = initialRecord.timestamp();
             this.partition = topicPartition.partition();
@@ -472,7 +518,7 @@ public abstract class ConsumerLease implements Closeable, ConsumerRebalanceListe
 
             final BundleInformation other = (BundleInformation) obj;
             return Objects.equals(topicPartition, other.topicPartition) && Objects.equals(schema, other.schema) && Objects.equals(attributes, other.attributes)
-                    && Arrays.equals(this.messageKey, other.messageKey);
+                && Arrays.equals(this.messageKey, other.messageKey);
         }
     }
 }

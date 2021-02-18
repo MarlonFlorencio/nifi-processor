@@ -1,5 +1,21 @@
-package com.github.marlonflorencio.nifi.processor;
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
+package com.github.marlonflorencio.nifi.processor;
 
 import org.apache.nifi.components.ValidationResult;
 import org.apache.nifi.logging.ComponentLog;
@@ -135,20 +151,20 @@ public class ConsumerPartitionsUtil {
 
         if (!partitionsMissing.isEmpty()) {
             return new ValidationResult.Builder()
-                    .subject("Partitions")
-                    .input(partitionsClaimed.toString())
-                    .valid(false)
-                    .explanation("The following partitions were not mapped to any node: " + partitionsMissing.toString())
-                    .build();
+                .subject("Partitions")
+                .input(partitionsClaimed.toString())
+                .valid(false)
+                .explanation("The following partitions were not mapped to any node: " + partitionsMissing.toString())
+                .build();
         }
 
         if (!duplicatePartitions.isEmpty()) {
             return new ValidationResult.Builder()
-                    .subject("Partitions")
-                    .input(partitionsClaimed.toString())
-                    .valid(false)
-                    .explanation("The following partitions were mapped to multiple nodes: " + duplicatePartitions.toString())
-                    .build();
+                .subject("Partitions")
+                .input(partitionsClaimed.toString())
+                .valid(false)
+                .explanation("The following partitions were mapped to multiple nodes: " + duplicatePartitions.toString())
+                .build();
         }
 
         final Map<String, int[]> partitionsByHost = mapPartitionValueToIntArrays(hostnameToPartitionMapping);
@@ -157,18 +173,18 @@ public class ConsumerPartitionsUtil {
             partitionsForThisHost = getPartitionsForThisHost(partitionsByHost);
         } catch (UnknownHostException e) {
             return new ValidationResult.Builder()
-                    .valid(false)
-                    .subject("Partition Assignment")
-                    .explanation("Unable to determine hostname of localhost")
-                    .build();
+                .valid(false)
+                .subject("Partition Assignment")
+                .explanation("Unable to determine hostname of localhost")
+                .build();
         }
 
         if (partitionsForThisHost == null) {
             return new ValidationResult.Builder()
-                    .subject("Partition Assignment")
-                    .valid(false)
-                    .explanation("No assignment was given for this host")
-                    .build();
+                .subject("Partition Assignment")
+                .valid(false)
+                .explanation("No assignment was given for this host")
+                .build();
         }
 
         return new ValidationResult.Builder().valid(true).build();
