@@ -2,6 +2,11 @@
 <project version="4">
   <component name="RemoteRepositoriesConfiguration">
     <remote-repository>
+      <option name="id" value="mvnrepository" />
+      <option name="name" value="mvnrepository" />
+      <option name="url" value="https://repo1.maven.org/maven2/" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Maven Repository" />
       <option name="url" value="https://repo1.maven.org/maven2" />
@@ -40,6 +45,11 @@
       <option name="id" value="jcenter" />
       <option name="name" value="jcenter" />
       <option name="url" value="https://jcenter.bintray.com" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="Shibboleth" />
+      <option name="name" value="Shibboleth" />
+      <option name="url" value="https://build.shibboleth.net/nexus/content/repositories/releases/" />
     </remote-repository>
   </component>
 </project>
