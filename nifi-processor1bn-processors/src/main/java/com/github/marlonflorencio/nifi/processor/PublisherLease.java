@@ -17,37 +17,25 @@
 
 package com.github.marlonflorencio.nifi.processor;
 
-import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.header.Headers;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
-import org.apache.nifi.schema.access.SchemaNotFoundException;
-import org.apache.nifi.serialization.RecordSetWriter;
-import org.apache.nifi.serialization.RecordSetWriterFactory;
-import org.apache.nifi.serialization.WriteResult;
-import org.apache.nifi.serialization.record.Record;
-import org.apache.nifi.serialization.record.RecordSchema;
-import org.apache.nifi.serialization.record.RecordSet;
 import org.apache.nifi.stream.io.StreamUtils;
 import org.apache.nifi.stream.io.exception.TokenTooLargeException;
 import org.apache.nifi.stream.io.util.StreamDemarcator;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class PublisherLease implements Closeable {
@@ -119,11 +107,6 @@ public class PublisherLease implements Closeable {
         activeTransaction = false;
     }
 
-    void fail(final FlowFile flowFile, final Exception cause) {
-        getTracker().fail(flowFile, cause);
-        rollback();
-    }
-
     void publish(final FlowFile flowFile, final InputStream flowFileContent, final byte[] messageKey, final byte[] demarcatorBytes, final String topic, final Integer partition) throws IOException {
         if (tracker == null) {
             tracker = new InFlightMessageTracker(logger);
@@ -162,56 +145,6 @@ public class PublisherLease implements Closeable {
         }
     }
 
-    void publish(final FlowFile flowFile, final RecordSet recordSet, final RecordSetWriterFactory writerFactory, final RecordSchema schema,
-                 final String messageKeyField, final String topic, final Function<Record, Integer> partitioner) throws IOException {
-        if (tracker == null) {
-            tracker = new InFlightMessageTracker(logger);
-        }
-
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
-
-        Record record;
-        int recordCount = 0;
-
-        try {
-            while ((record = recordSet.next()) != null) {
-                recordCount++;
-                baos.reset();
-
-                Map<String, String> additionalAttributes = Collections.emptyMap();
-                try (final RecordSetWriter writer = writerFactory.createWriter(logger, schema, baos, flowFile)) {
-                    final WriteResult writeResult = writer.write(record);
-                    additionalAttributes = writeResult.getAttributes();
-                    writer.flush();
-                }
-
-                final byte[] messageContent = baos.toByteArray();
-                final String key = messageKeyField == null ? null : record.getAsString(messageKeyField);
-                final byte[] messageKey = (key == null) ? null : key.getBytes(StandardCharsets.UTF_8);
-
-                final Integer partition = partitioner == null ? null : partitioner.apply(record);
-                publish(flowFile, additionalAttributes, messageKey, messageContent, topic, tracker, partition);
-
-                if (tracker.isFailed(flowFile)) {
-                    // If we have a failure, don't try to send anything else.
-                    return;
-                }
-            }
-
-            if (recordCount == 0) {
-                tracker.trackEmpty(flowFile);
-            }
-        } catch (final TokenTooLargeException ttle) {
-            tracker.fail(flowFile, ttle);
-        } catch (final SchemaNotFoundException snfe) {
-            throw new IOException(snfe);
-        } catch (final Exception e) {
-            tracker.fail(flowFile, e);
-            poison();
-            throw e;
-        }
-    }
-
     private void addHeaders(final FlowFile flowFile, final Map<String, String> additionalAttributes, final ProducerRecord<?, ?> record) {
         if (attributeNameRegex == null) {
             return;
@@ -242,15 +175,12 @@ public class PublisherLease implements Closeable {
         final ProducerRecord<byte[], byte[]> record = new ProducerRecord<>(topic, moddedPartition, messageKey, messageContent);
         addHeaders(flowFile, additionalAttributes, record);
 
-        producer.send(record, new Callback() {
-            @Override
-            public void onCompletion(final RecordMetadata metadata, final Exception exception) {
-                if (exception == null) {
-                    tracker.incrementAcknowledgedCount(flowFile);
-                } else {
-                    tracker.fail(flowFile, exception);
-                    poison();
-                }
+        producer.send(record, (metadata, exception) -> {
+            if (exception == null) {
+                tracker.incrementAcknowledgedCount(flowFile);
+            } else {
+                tracker.fail(flowFile, exception);
+                poison();
             }
         });
 
